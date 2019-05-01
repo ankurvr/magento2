@@ -80,9 +80,8 @@ class Freeshipping extends \Magento\Shipping\Model\Carrier\AbstractCarrier imple
 
         $this->_updateFreeMethodQuote($request);
 
-        if ($request->getFreeShipping() || $request->getBaseSubtotalInclTax() >= $this->getConfigData(
-            'free_shipping_subtotal'
-        )
+        if ($request->getFreeShipping()
+            || ($request->getPackageValueWithDiscount() >= $this->getConfigData('free_shipping_subtotal'))
         ) {
             /** @var \Magento\Quote\Model\Quote\Address\RateResult\Method $method */
             $method = $this->_rateMethodFactory->create();
@@ -97,8 +96,18 @@ class Freeshipping extends \Magento\Shipping\Model\Carrier\AbstractCarrier imple
             $method->setCost('0.00');
 
             $result->append($method);
+        } elseif ($this->getConfigData('showmethod')) {
+            $error = $this->_rateErrorFactory->create();
+            $error->setCarrier($this->_code);
+            $error->setCarrierTitle($this->getConfigData('title'));
+            $errorMsg = $this->getConfigData('specificerrmsg');
+            $error->setErrorMessage(
+                $errorMsg ? $errorMsg : __(
+                    'Sorry, but we can\'t deliver to the destination country with this shipping module.'
+                )
+            );
+            return $error;
         }
-
         return $result;
     }
 

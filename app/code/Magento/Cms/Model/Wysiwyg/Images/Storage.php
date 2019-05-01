@@ -270,7 +270,8 @@ class Storage extends \Magento\Framework\DataObject
         $collection = $this->getCollection($path)
             ->setCollectDirs(true)
             ->setCollectFiles(false)
-            ->setCollectRecursively(false);
+            ->setCollectRecursively(false)
+            ->setOrder('basename', \Magento\Framework\Data\Collection\Filesystem::SORT_ORDER_ASC);
 
         $conditions = $this->getConditionsForExcludeDirs();
 
@@ -499,14 +500,6 @@ class Storage extends \Magento\Framework\DataObject
 
         // create thumbnail
         $this->resizeFile($targetPath . '/' . $uploader->getUploadedFileName(), true);
-
-        $result['cookie'] = [
-            'name' => $this->getSession()->getName(),
-            'value' => $this->getSession()->getSessionId(),
-            'lifetime' => $this->getSession()->getCookieLifetime(),
-            'path' => $this->getSession()->getCookiePath(),
-            'domain' => $this->getSession()->getCookieDomain(),
-        ];
 
         return $result;
     }

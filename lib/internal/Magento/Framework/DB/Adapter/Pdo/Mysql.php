@@ -2854,6 +2854,7 @@ class Mysql extends \Zend_Db_Adapter_Pdo_Mysql implements AdapterInterface
      * - array("gteq" => $greaterOrEqualValue)
      * - array("lteq" => $lessOrEqualValue)
      * - array("finset" => $valueInSet)
+     * - array("nfinset" => $valueNotInSet)
      * - array("regexp" => $regularExpression)
      * - array("seq" => $stringValue)
      * - array("sneq" => $stringValue)
@@ -2883,6 +2884,7 @@ class Mysql extends \Zend_Db_Adapter_Pdo_Mysql implements AdapterInterface
             'gteq'          => "{{fieldName}} >= ?",
             'lteq'          => "{{fieldName}} <= ?",
             'finset'        => "FIND_IN_SET(?, {{fieldName}})",
+            'nfinset'       => "NOT FIND_IN_SET(?, {{fieldName}})",
             'regexp'        => "{{fieldName}} REGEXP ?",
             'from'          => "{{fieldName}} >= ?",
             'to'            => "{{fieldName}} <= ?",
@@ -2904,7 +2906,7 @@ class Mysql extends \Zend_Db_Adapter_Pdo_Mysql implements AdapterInterface
                 if (isset($condition['to'])) {
                     $query .= empty($query) ? '' : ' AND ';
                     $to     = $this->_prepareSqlDateCondition($condition, 'to');
-                    $query = $this->_prepareQuotedSqlCondition($query . $conditionKeyMap['to'], $to, $fieldName);
+                    $query = $query . $this->_prepareQuotedSqlCondition($conditionKeyMap['to'], $to, $fieldName);
                 }
             } elseif (array_key_exists($key, $conditionKeyMap)) {
                 $value = $condition[$key];
@@ -3807,13 +3809,13 @@ class Mysql extends \Zend_Db_Adapter_Pdo_Mysql implements AdapterInterface
 
         switch ($last) {
             case 'k':
-                $size = intval($size) * 1024;
+                $size = (int)$size * 1024;
                 break;
             case 'm':
-                $size = intval($size) * 1024 * 1024;
+                $size = (int)$size * 1024 * 1024;
                 break;
             case 'g':
-                $size = intval($size) * 1024 * 1024 * 1024;
+                $size = (int)$size * 1024 * 1024 * 1024;
                 break;
         }
 
@@ -3824,7 +3826,7 @@ class Mysql extends \Zend_Db_Adapter_Pdo_Mysql implements AdapterInterface
             return Table::MAX_TEXT_SIZE;
         }
 
-        return intval($size);
+        return (int)$size;
     }
 
     /**

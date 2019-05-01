@@ -6,6 +6,8 @@
  */
 namespace Magento\Customer\Controller\Account;
 
+use Magento\Customer\Api\Data\CustomerInterface;
+use Magento\Customer\Model\AddressRegistry;
 use Magento\Customer\Model\AuthenticationInterface;
 use Magento\Customer\Model\Customer\Mapper;
 use Magento\Customer\Model\EmailNotificationInterface;
@@ -20,9 +22,11 @@ use Magento\Framework\App\Action\Context;
 use Magento\Framework\Exception\InputException;
 use Magento\Framework\Exception\InvalidEmailOrPasswordException;
 use Magento\Framework\Exception\State\UserLockedException;
+use Magento\Framework\Escaper;
 
 /**
- * Class EditPost
+ * Class to editing post.
+ *
  * @SuppressWarnings(PHPMD.CouplingBetweenObjects)
  */
 class EditPost extends \Magento\Customer\Controller\AbstractAccount
@@ -73,12 +77,24 @@ class EditPost extends \Magento\Customer\Controller\AbstractAccount
     private $customerMapper;
 
     /**
+     * @var Escaper
+     */
+    private $escaper;
+
+    /**
+     * @var AddressRegistry
+     */
+    private $addressRegistry;
+
+    /**
      * @param Context $context
      * @param Session $customerSession
      * @param AccountManagementInterface $customerAccountManagement
      * @param CustomerRepositoryInterface $customerRepository
      * @param Validator $formKeyValidator
      * @param CustomerExtractor $customerExtractor
+     * @param Escaper|null $escaper
+     * @param AddressRegistry|null $addressRegistry
      */
     public function __construct(
         Context $context,
@@ -86,7 +102,9 @@ class EditPost extends \Magento\Customer\Controller\AbstractAccount
         AccountManagementInterface $customerAccountManagement,
         CustomerRepositoryInterface $customerRepository,
         Validator $formKeyValidator,
-        CustomerExtractor $customerExtractor
+        CustomerExtractor $customerExtractor,
+        Escaper $escaper = null,
+        AddressRegistry $addressRegistry = null
     ) {
         parent::__construct($context);
         $this->session = $customerSession;
@@ -94,6 +112,8 @@ class EditPost extends \Magento\Customer\Controller\AbstractAccount
         $this->customerRepository = $customerRepository;
         $this->formKeyValidator = $formKeyValidator;
         $this->customerExtractor = $customerExtractor;
+        $this->escaper = $escaper ?: ObjectManager::getInstance()->get(Escaper::class);
+        $this->addressRegistry = $addressRegistry ?: ObjectManager::getInstance()->get(AddressRegistry::class);
     }
 
     /**
@@ -131,7 +151,7 @@ class EditPost extends \Magento\Customer\Controller\AbstractAccount
     }
 
     /**
-     * Change customer email or password action
+     * Change customer email or password action.
      *
      * @return \Magento\Framework\Controller\Result\Redirect
      */
@@ -155,6 +175,9 @@ class EditPost extends \Magento\Customer\Controller\AbstractAccount
                 // whether a customer enabled change password option
                 $isPasswordChanged = $this->changeCustomerPassword($currentCustomerDataObject->getEmail());
 
+                // No need to validate customer address while editing customer profile
+                $this->disableAddressValidation($customerCandidateDataObject);
+
                 $this->customerRepository->save($customerCandidateDataObject);
                 $this->getEmailNotification()->credentialsChanged(
                     $customerCandidateDataObject,
@@ -163,6 +186,7 @@ class EditPost extends \Magento\Customer\Controller\AbstractAccount
                 );
                 $this->dispatchSuccessEvent($customerCandidateDataObject);
                 $this->messageManager->addSuccess(__('You saved the account information.'));
+
                 return $resultRedirect->setPath('customer/account');
             } catch (InvalidEmailOrPasswordException $e) {
                 $this->messageManager->addError($e->getMessage());
@@ -173,11 +197,12 @@ class EditPost extends \Magento\Customer\Controller\AbstractAccount
                 $this->session->logout();
                 $this->session->start();
                 $this->messageManager->addError($message);
+
                 return $resultRedirect->setPath('customer/account/login');
             } catch (InputException $e) {
-                $this->messageManager->addError($e->getMessage());
+                $this->messageManager->addErrorMessage($this->escaper->escapeHtml($e->getMessage()));
                 foreach ($e->getErrors() as $error) {
-                    $this->messageManager->addError($error->getMessage());
+                    $this->messageManager->addErrorMessage($this->escaper->escapeHtml($error->getMessage()));
                 }
             } catch (\Magento\Framework\Exception\LocalizedException $e) {
                 $this->messageManager->addError($e->getMessage());
@@ -305,5 +330,19 @@ class EditPost extends \Magento\Customer\Controller\AbstractAccount
             $this->customerMapper = ObjectManager::getInstance()->get(\Magento\Customer\Model\Customer\Mapper::class);
         }
         return $this->customerMapper;
+    }
+
+    /**
+     * Disable Customer Address Validation.
+     *
+     * @param CustomerInterface $customer
+     * @return void
+     */
+    private function disableAddressValidation(CustomerInterface $customer)
+    {
+        foreach ($customer->getAddresses() as $address) {
+            $addressModel = $this->addressRegistry->retrieve($address->getId());
+            $addressModel->setShouldIgnoreValidation(true);
+        }
     }
 }

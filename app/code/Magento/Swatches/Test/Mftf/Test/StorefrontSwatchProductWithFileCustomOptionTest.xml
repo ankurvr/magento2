@@ -7,7 +7,7 @@
 -->
 
 <tests xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-       xsi:noNamespaceSchemaLocation="../../../../../../../dev/tests/acceptance/vendor/magento/magento2-functional-testing-framework/src/Magento/FunctionalTestingFramework/Test/etc/testSchema.xsd">
+       xsi:noNamespaceSchemaLocation="urn:magento:mftf:Test/etc/testSchema.xsd">
     <test name="StorefrontSwatchProductWithFileCustomOptionTest">
         <annotations>
             <features value="ConfigurableProduct"/>
@@ -50,7 +50,9 @@
         <!--Add swatch attribute to configurable product-->
         <actionGroup ref="CreateConfigurationsWithVisualSwatch" stepKey="createConfigurationsWithVisualSwatch"/>
         <!--Add custom option to configurable product-->
-        <actionGroup ref="AddProductCustomOptionFile" stepKey="addCustomOptionToProduct"/>
+        <actionGroup ref="AddProductCustomOptionFile" stepKey="addCustomOptionToProduct">
+            <argument name="option" value="ProductOptionFile"/>
+        </actionGroup>
         <click selector="{{AdminProductFormActionSection.saveButton}}" stepKey="saveProduct"/>
 
         <!--Go to storefront-->
@@ -70,7 +72,6 @@
         <!--Try invalid file-->
         <attachFile selector="{{StorefrontProductInfoMainSection.addLinkFileUploadFile(ProductOptionFile.title)}}" userInput="lorem_ipsum.docx" stepKey="attachInvalidFile"/>
         <click selector="{{StorefrontProductPageSection.addToCartBtn}}" stepKey="addToCartInvalidFile"/>
-        <waitForPageLoad time="30" stepKey="waitForAddToCartWithError"/>
         <waitForElementVisible selector="{{StorefrontProductPageSection.alertMessage}}" stepKey="waitForErrorMessageInvalidFile"/>
         <see selector="{{StorefrontProductPageSection.messagesBlock}}" userInput="The file 'lorem_ipsum.docx' for '{{ProductOptionFile.title}}' has an invalid extension." stepKey="seeMessageInvalidFile"/>
         <!--Swatch remains selected-->

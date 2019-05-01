@@ -54,6 +54,7 @@ class PlaceOrder extends AbstractAction
 
     /**
      * @inheritdoc
+     *
      * @throws LocalizedException
      */
     public function execute()
@@ -71,7 +72,10 @@ class PlaceOrder extends AbstractAction
             return $resultRedirect->setPath('checkout/onepage/success', ['_secure' => true]);
         } catch (\Exception $e) {
             $this->logger->critical($e);
-            $this->messageManager->addExceptionMessage($e, $e->getMessage());
+            $this->messageManager->addExceptionMessage(
+                $e,
+                __('The order #%1 cannot be processed.', $quote->getReservedOrderId())
+            );
         }
 
         return $resultRedirect->setPath('checkout/cart', ['_secure' => true]);
