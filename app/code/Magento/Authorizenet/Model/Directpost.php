@@ -549,16 +549,16 @@ class Directpost extends \Magento\Authorizenet\Model\Authorizenet implements Tra
     public function validateResponse()
     {
         $response = $this->getResponse();
-        //md5 check
-        if (
-            !$this->getConfigData('trans_md5')
-            || !$this->getConfigData('login')
-            || !$response->isValidHash($this->getConfigData('trans_md5'), $this->getConfigData('login'))
+        $hashConfigKey = !empty($response->getData('x_SHA2_Hash')) ? 'signature_key' : 'trans_md5';
+
+        //hash check
+        if (!$response->isValidHash($this->getConfigData($hashConfigKey), $this->getConfigData('login'))
         ) {
             throw new \Magento\Framework\Exception\LocalizedException(
                 __('The transaction was declined because the response hash validation failed.')
             );
         }
+
         return true;
     }
 
@@ -820,11 +820,14 @@ class Directpost extends \Magento\Authorizenet\Model\Authorizenet implements Tra
     {
         try {
             $response = $this->getResponse();
-            if (
-                $voidPayment && $response->getXTransId() && strtoupper($response->getXType())
-                == self::REQUEST_TYPE_AUTH_ONLY
+            if ($voidPayment
+                && $response->getXTransId()
+                && strtoupper($response->getXType()) == self::REQUEST_TYPE_AUTH_ONLY
             ) {
-                $order->getPayment()->setTransactionId(null)->setParentTransactionId($response->getXTransId())->void();
+                $order->getPayment()
+                      ->setTransactionId(null)
+                      ->setParentTransactionId($response->getXTransId())
+                      ->void($response);
             }
             $order->registerCancellation($message)->save();
         } catch (\Exception $e) {

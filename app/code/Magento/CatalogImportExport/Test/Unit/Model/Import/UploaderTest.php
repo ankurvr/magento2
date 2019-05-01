@@ -39,9 +39,14 @@ class UploaderTest extends \PHPUnit_Framework_TestCase
     protected $readFactory;
 
     /**
-     * @var \Magento\Framework\Filesystem\Directory\Writer| \PHPUnit_Framework_MockObject_MockObject
+     * @var \Magento\Framework\Filesystem\Directory\Writer|\PHPUnit_Framework_MockObject_MockObject
      */
     protected $directoryMock;
+
+    /**
+     * @var \Magento\Framework\App\Filesystem\DirectoryResolver|\PHPUnit_Framework_MockObject_MockObject
+     */
+    private $directoryResolver;
 
     /**
      * @var \Magento\CatalogImportExport\Model\Import\Uploader|\PHPUnit_Framework_MockObject_MockObject
@@ -72,7 +77,7 @@ class UploaderTest extends \PHPUnit_Framework_TestCase
             ->getMock();
 
         $this->directoryMock = $this->getMockBuilder(\Magento\Framework\Filesystem\Directory\Writer::class)
-            ->setMethods(['writeFile', 'getRelativePath', 'isWritable', 'getAbsolutePath'])
+            ->setMethods(['writeFile', 'getRelativePath', 'isWritable', 'isReadable', 'getAbsolutePath'])
             ->disableOriginalConstructor()
             ->getMock();
 
@@ -84,6 +89,11 @@ class UploaderTest extends \PHPUnit_Framework_TestCase
                         ->method('getDirectoryWrite')
                         ->will($this->returnValue($this->directoryMock));
 
+        $this->directoryResolver = $this->getMockBuilder(\Magento\Framework\App\Filesystem\DirectoryResolver::class)
+            ->disableOriginalConstructor()
+            ->setMethods(['validatePath'])
+            ->getMock();
+
         $this->uploader = $this->getMockBuilder(\Magento\CatalogImportExport\Model\Import\Uploader::class)
             ->setConstructorArgs([
                 $this->coreFileStorageDb,
@@ -92,18 +102,20 @@ class UploaderTest extends \PHPUnit_Framework_TestCase
                 $this->validator,
                 $this->filesystem,
                 $this->readFactory,
+                null,
+                $this->directoryResolver,
             ])
-            ->setMethods(['_setUploadFile', 'save', 'getTmpDir'])
+            ->setMethods(['_setUploadFile', 'save', 'getTmpDir', 'checkAllowedExtension'])
             ->getMock();
     }
 
     /**
      * @dataProvider moveFileUrlDataProvider
      */
-    public function testMoveFileUrl($fileUrl, $expectedHost, $expectedFileName)
+    public function testMoveFileUrl($fileUrl, $expectedHost, $expectedFileName, $checkAllowedExtension)
     {
         $destDir = 'var/dest/dir';
-        $expectedRelativeFilePath = $this->uploader->getTmpDir() . '/' . $expectedFileName;
+        $expectedRelativeFilePath = $expectedFileName;
         $this->directoryMock->expects($this->once())->method('isWritable')->with($destDir)->willReturn(true);
         $this->directoryMock->expects($this->any())->method('getRelativePath')->with($expectedRelativeFilePath);
         $this->directoryMock->expects($this->once())->method('getAbsolutePath')->with($destDir)
@@ -128,6 +140,9 @@ class UploaderTest extends \PHPUnit_Framework_TestCase
         $this->uploader->expects($this->once())->method('_setUploadFile')->will($this->returnSelf());
         $this->uploader->expects($this->once())->method('save')->with($destDir . '/' . $expectedFileName)
             ->willReturn(['name' => $expectedFileName, 'path' => 'absPath']);
+        $this->uploader->expects($this->exactly($checkAllowedExtension))
+            ->method('checkAllowedExtension')
+            ->willReturn(true);
 
         $this->uploader->setDestDir($destDir);
         $result = $this->uploader->move($fileUrl);
@@ -139,7 +154,7 @@ class UploaderTest extends \PHPUnit_Framework_TestCase
     {
         $destDir = 'var/dest/dir';
         $fileName = 'test_uploader_file';
-        $expectedRelativeFilePath = $this->uploader->getTmpDir() . '/' . $fileName;
+        $expectedRelativeFilePath = $fileName;
         $this->directoryMock->expects($this->once())->method('isWritable')->with($destDir)->willReturn(true);
         $this->directoryMock->expects($this->any())->method('getRelativePath')->with($expectedRelativeFilePath);
         $this->directoryMock->expects($this->once())->method('getAbsolutePath')->with($destDir)
@@ -154,6 +169,9 @@ class UploaderTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals(['name' => $fileName], $this->uploader->move($fileName));
     }
 
+    /**
+     * @return array
+     */
     public function moveFileUrlDataProvider()
     {
         return [
@@ -161,12 +179,56 @@ class UploaderTest extends \PHPUnit_Framework_TestCase
                 '$fileUrl' => 'http://test_uploader_file',
                 '$expectedHost' => 'test_uploader_file',
                 '$expectedFileName' => 'httptest_uploader_file',
+                '$checkAllowedExtension' => 0,
             ],
             [
                 '$fileUrl' => 'https://!:^&`;file',
                 '$expectedHost' => '!:^&`;file',
                 '$expectedFileName' => 'httpsfile',
+                '$checkAllowedExtension' => 0,
             ],
+        ];
+    }
+
+    /**
+     * @dataProvider validatePathDataProvider
+     *
+     * @param bool $pathIsValid
+     * @return void
+     */
+    public function testSetTmpDir($pathIsValid)
+    {
+        $path = 'path';
+        $absolutePath = 'absolute_path';
+        $this->directoryMock
+            ->expects($this->atLeastOnce())
+            ->method('isReadable')
+            ->with($path)
+            ->willReturn(true);
+        $this->directoryMock
+            ->expects($this->atLeastOnce())
+            ->method('getAbsolutePath')
+            ->with($path)
+            ->willReturn($absolutePath);
+        $this->directoryResolver
+            ->expects($this->atLeastOnce())
+            ->method('validatePath')
+            ->with($absolutePath, 'base')
+            ->willReturn($pathIsValid);
+
+        $this->assertEquals($pathIsValid, $this->uploader->setTmpDir($path));
+    }
+
+    /**
+     * Data provider for the testSetTmpDir()
+     *
+     * @return array
+     */
+    public function validatePathDataProvider()
+    {
+        return [
+            [true],
+            [false],
         ];
     }
 }

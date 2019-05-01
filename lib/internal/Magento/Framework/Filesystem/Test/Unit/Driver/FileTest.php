@@ -30,14 +30,17 @@ class FileTest extends \PHPUnit_Framework_TestCase
         $file = new File();
         $this->assertEquals($expected, $file->getAbsolutePath($basePath, $path));
     }
-    
+
+    /**
+     * @return array
+     */
     public function dataProviderForTestGetAbsolutePath()
     {
         return [
             ['/root/path/', 'sub', '/root/path/sub'],
             ['/root/path/', '/sub', '/root/path/sub'],
             ['/root/path/', '../sub', '/root/path/../sub'],
-            ['/root/path/', '/root/path/sub', '/root/path/root/path/sub'],
+            ['/root/path/', '/root/path/sub', '/root/path/sub'],
         ];
     }
 
@@ -50,6 +53,9 @@ class FileTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals($expected, $file->getRelativePath($basePath, $path));
     }
 
+    /**
+     * @return array
+     */
     public function dataProviderForTestGetRelativePath()
     {
         return [

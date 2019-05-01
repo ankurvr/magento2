@@ -53,6 +53,9 @@ define([
                 '${ $.provider }:${ $.customScope ? $.customScope + "." : ""}data.validate': 'validate',
                 'isUseDefault': 'toggleUseDefault'
             },
+            ignoreTmpls: {
+                value: true
+            },
 
             links: {
                 value: '${ $.provider }:${ $.dataScope }'
@@ -205,7 +208,7 @@ define([
         },
 
         /**
-         * Sets 'value' as 'hidden' propertie's value, triggers 'toggle' event,
+         * Sets 'value' as 'hidden' property's value, triggers 'toggle' event,
          * sets instance's hidden identifier in params storage based on
          * 'value'.
          *
