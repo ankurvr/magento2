@@ -15,6 +15,7 @@ use Magento\Catalog\Model\ResourceModel\Category\CollectionFactory as CategoryCo
 use Magento\Catalog\Model\ResourceModel\Eav\Attribute as EavAttribute;
 use Magento\Eav\Api\Data\AttributeInterface;
 use Magento\Eav\Model\Config;
+use Magento\Eav\Model\Entity\Attribute\Source\SpecificSourceInterface;
 use Magento\Eav\Model\Entity\Type;
 use Magento\Framework\App\ObjectManager;
 use Magento\Framework\Exception\NoSuchEntityException;
@@ -24,6 +25,7 @@ use Magento\Store\Model\Store;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Ui\Component\Form\Field;
 use Magento\Ui\DataProvider\EavValidationRules;
+use Magento\Framework\AuthorizationInterface;
 
 /**
  * Class DataProvider
@@ -31,6 +33,7 @@ use Magento\Ui\DataProvider\EavValidationRules;
  * @api
  *
  * @SuppressWarnings(PHPMD.CouplingBetweenObjects)
+ * @SuppressWarnings(PHPMD.TooManyFields)
  * @since 101.0.0
  */
 class DataProvider extends \Magento\Ui\DataProvider\AbstractDataProvider
@@ -62,6 +65,8 @@ class DataProvider extends \Magento\Ui\DataProvider\AbstractDataProvider
         'default' => 'default_value',
         'size' => 'multiline_count',
     ];
+
+    private $boolMetaProperties = ['visible', 'required'];
 
     /**
      * Form element mapping
@@ -146,6 +151,11 @@ class DataProvider extends \Magento\Ui\DataProvider\AbstractDataProvider
     private $fileInfo;
 
     /**
+     * @var AuthorizationInterface
+     */
+    private $authorization;
+
+    /**
      * DataProvider constructor
      *
      * @param string $name
@@ -160,6 +170,7 @@ class DataProvider extends \Magento\Ui\DataProvider\AbstractDataProvider
      * @param CategoryFactory $categoryFactory
      * @param array $meta
      * @param array $data
+     * @param AuthorizationInterface|null $authorization
      * @SuppressWarnings(PHPMD.ExcessiveParameterList)
      */
     public function __construct(
@@ -174,7 +185,8 @@ class DataProvider extends \Magento\Ui\DataProvider\AbstractDataProvider
         \Magento\Framework\App\RequestInterface $request,
         CategoryFactory $categoryFactory,
         array $meta = [],
-        array $data = []
+        array $data = [],
+        AuthorizationInterface $authorization = null
     ) {
         $this->eavValidationRules = $eavValidationRules;
         $this->collection = $categoryCollectionFactory->create();
@@ -184,6 +196,7 @@ class DataProvider extends \Magento\Ui\DataProvider\AbstractDataProvider
         $this->storeManager = $storeManager;
         $this->request = $request;
         $this->categoryFactory = $categoryFactory;
+        $this->authorization = $authorization ?? ObjectManager::getInstance()->get(AuthorizationInterface::class);
 
         parent::__construct($name, $primaryFieldName, $requestFieldName, $meta, $data);
     }
@@ -207,6 +220,8 @@ class DataProvider extends \Magento\Ui\DataProvider\AbstractDataProvider
     }
 
     /**
+     * Add 'use default checkbox' to attributes that can have it.
+     *
      * @param Category $category
      * @param array $meta
      * @return array
@@ -274,11 +289,20 @@ class DataProvider extends \Magento\Ui\DataProvider\AbstractDataProvider
      */
     private function prepareFieldsMeta($fieldsMap, $fieldsMeta)
     {
+        $canEditDesign = $this->authorization->isAllowed('Magento_Catalog::edit_category_design');
+
         $result = [];
         foreach ($fieldsMap as $fieldSet => $fields) {
             foreach ($fields as $field) {
                 if (isset($fieldsMeta[$field])) {
-                    $result[$fieldSet]['children'][$field]['arguments']['data']['config'] = $fieldsMeta[$field];
+                    $config = $fieldsMeta[$field];
+                    if (($fieldSet === 'design' || $fieldSet === 'schedule_design_update') && !$canEditDesign) {
+                        $config['required'] = 1;
+                        $config['disabled'] = 1;
+                        $config['serviceDisabled'] = true;
+                    }
+
+                    $result[$fieldSet]['children'][$field]['arguments']['data']['config'] = $config;
                 }
             }
         }
@@ -329,13 +353,26 @@ class DataProvider extends \Magento\Ui\DataProvider\AbstractDataProvider
             foreach ($this->metaProperties as $metaName => $origName) {
                 $value = $attribute->getDataUsingMethod($origName);
                 $meta[$code][$metaName] = $value;
+                if (in_array($metaName, $this->boolMetaProperties, true)) {
+                    $meta[$code][$metaName] = (bool)$meta[$code][$metaName];
+                }
                 if ('frontend_input' === $origName) {
                     $meta[$code]['formElement'] = isset($this->formElement[$value])
                         ? $this->formElement[$value]
                         : $value;
                 }
                 if ($attribute->usesSource()) {
-                    $meta[$code]['options'] = $attribute->getSource()->getAllOptions();
+                    $source = $attribute->getSource();
+                    $currentCategory = $this->getCurrentCategory();
+                    if ($source instanceof SpecificSourceInterface && $currentCategory) {
+                        $options = $source->getOptionsFor($currentCategory);
+                    } else {
+                        $options = $source->getAllOptions();
+                    }
+                    foreach ($options as &$option) {
+                        $option['__disableTmpl'] = true;
+                    }
+                    $meta[$code]['options'] = $options;
                 }
             }
 
@@ -480,6 +517,12 @@ class DataProvider extends \Magento\Ui\DataProvider\AbstractDataProvider
     private function convertValues($category, $categoryData)
     {
         foreach ($category->getAttributes() as $attributeCode => $attribute) {
+            if ($attributeCode === 'custom_layout_update_file') {
+                if (!empty($categoryData['custom_layout_update'])) {
+                    $categoryData['custom_layout_update_file']
+                        = \Magento\Catalog\Model\Category\Attribute\Backend\LayoutUpdate::VALUE_USE_UPDATE_XML;
+                }
+            }
             if (!isset($categoryData[$attributeCode])) {
                 continue;
             }
@@ -521,6 +564,8 @@ class DataProvider extends \Magento\Ui\DataProvider\AbstractDataProvider
     }
 
     /**
+     * List form field sets and fields.
+     *
      * @return array
      * @since 101.0.0
      */
@@ -565,6 +610,7 @@ class DataProvider extends \Magento\Ui\DataProvider\AbstractDataProvider
                     'custom_design',
                     'page_layout',
                     'custom_layout_update',
+                    'custom_layout_update_file'
                 ],
             'schedule_design_update' => [
                     'custom_design_from',

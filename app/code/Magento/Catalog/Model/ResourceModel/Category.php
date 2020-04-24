@@ -12,6 +12,7 @@
 namespace Magento\Catalog\Model\ResourceModel;
 
 use Magento\Catalog\Model\Indexer\Category\Product\Processor;
+use Magento\Framework\App\ObjectManager;
 use Magento\Framework\DataObject;
 use Magento\Framework\EntityManager\EntityManager;
 
@@ -122,9 +123,9 @@ class Category extends AbstractResource
         $this->_categoryCollectionFactory = $categoryCollectionFactory;
         $this->_eventManager = $eventManager;
         $this->connectionName  = 'catalog';
-        $this->serializer = $serializer ?: \Magento\Framework\App\ObjectManager::getInstance()
+        $this->serializer = $serializer ?: ObjectManager::getInstance()
             ->get(\Magento\Framework\Serialize\Serializer\Json::class);
-        $this->indexerProcessor = $indexerProcessor ?: \Magento\Framework\App\ObjectManager::getInstance()
+        $this->indexerProcessor = $indexerProcessor ?: ObjectManager::getInstance()
             ->get(Processor::class);
     }
 
@@ -268,6 +269,9 @@ class Category extends AbstractResource
         $object->setAttributeSetId(
             $object->getAttributeSetId() ?: $this->getEntityType()->getDefaultAttributeSetId()
         );
+
+        $this->castPathIdsToInt($object);
+
         if ($object->isObjectNew()) {
             if ($object->getPosition() === null) {
                 $object->setPosition($this->_getMaxPosition($object->getPath()) + 1);
@@ -630,10 +634,9 @@ class Category extends AbstractResource
      */
     public function findWhereAttributeIs($entityIdsFilter, $attribute, $expectedValue)
     {
-        // @codingStandardsIgnoreStart
         $serializeData = $this->serializer->serialize($entityIdsFilter);
+        // phpcs:ignore
         $entityIdsFilterHash = md5($serializeData);
-        // @codingStandardsIgnoreEnd
 
         if (!isset($this->entitiesWhereAttributesIs[$entityIdsFilterHash][$attribute->getId()][$expectedValue])) {
             $linkField = $this->getLinkField();
@@ -754,6 +757,8 @@ class Category extends AbstractResource
             'custom_layout_update'
         )->addAttributeToSelect(
             'custom_apply_to_products'
+        )->addAttributeToSelect(
+            'custom_layout_update_file'
         )->addFieldToFilter(
             'entity_id',
             ['in' => $pathIds]
@@ -1022,7 +1027,7 @@ class Category extends AbstractResource
         if ($afterCategoryId) {
             $select = $connection->select()->from($table, 'position')->where('entity_id = :entity_id');
             $position = $connection->fetchOne($select, ['entity_id' => $afterCategoryId]);
-            $position += 1;
+            $position++;
         } else {
             $position = 1;
         }
@@ -1123,5 +1128,24 @@ class Category extends AbstractResource
                 ->get(\Magento\Catalog\Model\ResourceModel\Category\AggregateCount::class);
         }
         return $this->aggregateCount;
+    }
+
+    /**
+     * Cast category path ids to int.
+     *
+     * @param DataObject $object
+     * @return void
+     */
+    private function castPathIdsToInt(DataObject $object)
+    {
+        $pathIds = explode('/', (string)$object->getPath());
+
+        array_walk(
+            $pathIds,
+            function (&$pathId) {
+                $pathId = (int)$pathId;
+            }
+        );
+        $object->setPath(implode('/', $pathIds));
     }
 }

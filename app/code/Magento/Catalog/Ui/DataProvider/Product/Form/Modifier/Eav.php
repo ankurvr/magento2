@@ -17,11 +17,14 @@ use Magento\Catalog\Ui\DataProvider\CatalogEavValidationRules;
 use Magento\Eav\Api\Data\AttributeGroupInterface;
 use Magento\Eav\Api\Data\AttributeInterface;
 use Magento\Eav\Model\Config;
+use Magento\Eav\Model\Entity\Attribute\Source\SpecificSourceInterface;
 use Magento\Eav\Model\ResourceModel\Entity\Attribute\Group\CollectionFactory as GroupCollectionFactory;
 use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\Api\SortOrderBuilder;
+use Magento\Framework\App\ObjectManager;
 use Magento\Framework\App\Request\DataPersistorInterface;
 use Magento\Framework\App\RequestInterface;
+use Magento\Framework\AuthorizationInterface;
 use Magento\Framework\Filter\Translit;
 use Magento\Framework\Locale\CurrencyInterface;
 use Magento\Framework\Stdlib\ArrayManager;
@@ -202,6 +205,27 @@ class Eav extends AbstractModifier
     private $attributeCollectionFactory;
 
     /**
+     * @var AuthorizationInterface
+     */
+    private $authorization;
+
+    /**
+     * Product design attribute codes.
+     *
+     * @var array
+     */
+    private $designAttributeCodes = [
+        'custom_design',
+        'page_layout',
+        'options_container',
+        'custom_layout_update',
+        'custom_design_from',
+        'custom_design_to',
+        'custom_layout',
+        'custom_layout_update_file'
+    ];
+
+    /**
      * @param LocatorInterface $locator
      * @param CatalogEavValidationRules $catalogEavValidationRules
      * @param Config $eavConfig
@@ -222,6 +246,7 @@ class Eav extends AbstractModifier
      * @param array $attributesToDisable
      * @param array $attributesToEliminate
      * @param AttributeCollectionFactory $attributeCollectionFactory
+     * @param AuthorizationInterface|null $authorization
      * @SuppressWarnings(PHPMD.ExcessiveParameterList)
      */
     public function __construct(
@@ -244,7 +269,8 @@ class Eav extends AbstractModifier
         DataPersistorInterface $dataPersistor,
         $attributesToDisable = [],
         $attributesToEliminate = [],
-        AttributeCollectionFactory $attributeCollectionFactory = null
+        AttributeCollectionFactory $attributeCollectionFactory = null,
+        AuthorizationInterface $authorization = null
     ) {
         $this->locator = $locator;
         $this->catalogEavValidationRules = $catalogEavValidationRules;
@@ -266,7 +292,8 @@ class Eav extends AbstractModifier
         $this->attributesToDisable = $attributesToDisable;
         $this->attributesToEliminate = $attributesToEliminate;
         $this->attributeCollectionFactory = $attributeCollectionFactory
-            ?: \Magento\Framework\App\ObjectManager::getInstance()->get(AttributeCollectionFactory::class);
+            ?: ObjectManager::getInstance()->get(AttributeCollectionFactory::class);
+        $this->authorization = $authorization ?? ObjectManager::getInstance()->get(AuthorizationInterface::class);
     }
 
     /**
@@ -650,12 +677,22 @@ class Eav extends AbstractModifier
             'scopeLabel' => $this->getScopeLabel($attribute),
             'globalScope' => $this->isScopeGlobal($attribute),
             'sortOrder' => $sortOrder * self::SORT_ORDER_MULTIPLIER,
+            '__disableTmpl' => ['label' => true, 'code' => true]
         ]);
+        $product = $this->locator->getProduct();
 
         // TODO: Refactor to $attribute->getOptions() when MAGETWO-48289 is done
         $attributeModel = $this->getAttributeModel($attribute);
         if ($attributeModel->usesSource()) {
-            $options = $attributeModel->getSource()->getAllOptions(true, true);
+            $source = $attributeModel->getSource();
+            if ($source instanceof SpecificSourceInterface) {
+                $options = $source->getOptionsFor($product);
+            } else {
+                $options = $source->getAllOptions(true, true);
+            }
+            foreach ($options as &$option) {
+                $option['__disableTmpl'] = true;
+            }
             $meta = $this->arrayManager->merge($configPath, $meta, [
                 'options' => $this->convertOptionsValueToString($options),
             ]);
@@ -675,7 +712,6 @@ class Eav extends AbstractModifier
             ]);
         }
 
-        $product = $this->locator->getProduct();
         if (in_array($attributeCode, $this->attributesToDisable) || $product->isLockedAttribute($attributeCode)) {
             $meta = $this->arrayManager->merge($configPath, $meta, [
                 'disabled' => true,
@@ -706,6 +742,40 @@ class Eav extends AbstractModifier
                 // Gallery attribute is being handled by "Images And Videos" section
                 $meta = [];
                 break;
+        }
+
+        $meta = $this->disableInaccessibleAttribute($attribute, $configPath, $meta);
+
+        return $meta;
+    }
+
+    /**
+     * Disable inaccessible attributes.
+     *
+     * @param ProductAttributeInterface $attribute
+     * @param string $configPath
+     * @param array $meta
+     * @return array Updated meta.
+     */
+    private function disableInaccessibleAttribute(
+        ProductAttributeInterface $attribute,
+        string $configPath,
+        array $meta
+    ): array {
+        if (in_array($attribute->getAttributeCode(), $this->designAttributeCodes, true)) {
+            //Checking access to design configurations
+            if (!$this->authorization->isAllowed('Magento_Catalog::edit_product_design')) {
+                return $this->arrayManager->merge(
+                    $configPath,
+                    $meta,
+                    [
+                        'disabled' => true,
+                        'validation' => ['required' => false],
+                        'required' => false,
+                        'serviceDisabled' => true,
+                    ]
+                );
+            }
         }
 
         return $meta;
@@ -769,6 +839,7 @@ class Eav extends AbstractModifier
                 'breakLine' => false,
                 'label' => $attribute->getDefaultFrontendLabel(),
                 'required' => $attribute->getIsRequired(),
+                '__disableTmpl' => ['label' => true]
             ]
         );
 

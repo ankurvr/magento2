@@ -1,11 +1,8 @@
 <?php
 /**
- *
  * Copyright © Magento, Inc. All rights reserved.
  * See COPYING.txt for license details.
  */
-
-// @codingStandardsIgnoreFile
 
 namespace Magento\PageCache\Test\Unit\Controller\Block;
 
@@ -111,14 +108,20 @@ class RenderTest extends \PHPUnit\Framework\TestCase
     public function testExecute()
     {
         $blocks = ['block1', 'block2'];
-        $handles = ['handle1', 'handle2'];
+        $handles = ['handle1', 'handle2', "'handle'", '@hanle', '"hanle', '*hanle', '.hanle'];
         $originalRequest = '{"route":"route","controller":"controller","action":"action","uri":"uri"}';
         $expectedData = ['block1' => 'data1', 'block2' => 'data2'];
 
-        $blockInstance1 = $this->createPartialMock(\Magento\PageCache\Test\Unit\Block\Controller\StubBlock::class, ['toHtml']);
+        $blockInstance1 = $this->createPartialMock(
+            \Magento\PageCache\Test\Unit\Block\Controller\StubBlock::class,
+            ['toHtml']
+        );
         $blockInstance1->expects($this->once())->method('toHtml')->will($this->returnValue($expectedData['block1']));
 
-        $blockInstance2 = $this->createPartialMock(\Magento\PageCache\Test\Unit\Block\Controller\StubBlock::class, ['toHtml']);
+        $blockInstance2 = $this->createPartialMock(
+            \Magento\PageCache\Test\Unit\Block\Controller\StubBlock::class,
+            ['toHtml']
+        );
         $blockInstance2->expects($this->once())->method('toHtml')->will($this->returnValue($expectedData['block2']));
 
         $this->requestMock->expects($this->once())->method('isAjax')->will($this->returnValue(true));
@@ -148,7 +151,7 @@ class RenderTest extends \PHPUnit\Framework\TestCase
             ->method('getParam')
             ->with($this->equalTo('handles'), $this->equalTo(''))
             ->will($this->returnValue(base64_encode(json_encode($handles))));
-        $this->viewMock->expects($this->once())->method('loadLayout')->with($this->equalTo($handles));
+        $this->viewMock->expects($this->once())->method('loadLayout')->with($this->equalTo(['handle1', 'handle2']));
         $this->viewMock->expects($this->any())->method('getLayout')->will($this->returnValue($this->layoutMock));
         $this->layoutMock->expects($this->at(0))
             ->method('getBlock')

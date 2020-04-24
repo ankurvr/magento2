@@ -4,8 +4,6 @@
  * See COPYING.txt for license details.
  */
 
-// @codingStandardsIgnoreFile
-
 namespace Magento\User\Controller\Adminhtml\User;
 
 use Magento\Framework\Message\MessageInterface;
@@ -13,6 +11,8 @@ use Magento\TestFramework\Helper\Bootstrap;
 
 /**
  * Test class for Magento\User\Controller\Adminhtml\User\InvalidateToken.
+ *
+ * @magentoAppArea adminhtml
  */
 class InvalidateTokenTest extends \Magento\TestFramework\TestCase\AbstractBackendController
 {
@@ -82,7 +82,7 @@ class InvalidateTokenTest extends \Magento\TestFramework\TestCase\AbstractBacken
     /**
      * @magentoDataFixture Magento/User/_files/user_with_role.php
      */
-    public function testInvalidateToken_NoTokens()
+    public function testInvalidateTokenNoTokens()
     {
         /** @var \Magento\User\Model\User $userModel */
         $userModel = Bootstrap::getObjectManager()->get(\Magento\User\Model\User::class);
@@ -97,7 +97,7 @@ class InvalidateTokenTest extends \Magento\TestFramework\TestCase\AbstractBacken
         );
     }
 
-    public function testInvalidateToken_NoUser()
+    public function testInvalidateTokenNoUser()
     {
         $this->dispatch('backend/admin/user/invalidateToken');
         $this->assertSessionMessages(
@@ -106,7 +106,7 @@ class InvalidateTokenTest extends \Magento\TestFramework\TestCase\AbstractBacken
         );
     }
 
-    public function testInvalidateToken_InvalidUser()
+    public function testInvalidateTokenInvalidUser()
     {
         $adminUserId = 999;
         // invalidate token

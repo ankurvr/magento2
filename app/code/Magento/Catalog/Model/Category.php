@@ -149,6 +149,8 @@ class Category extends \Magento\Catalog\Model\AbstractModel implements
         'page_layout',
         'custom_layout_update',
         'custom_apply_to_products',
+        'custom_layout_update_file',
+        'custom_use_parent_settings'
     ];
 
     /**
@@ -346,9 +348,11 @@ class Category extends \Magento\Catalog\Model\AbstractModel implements
      * @throws \Magento\Framework\Exception\LocalizedException
      * @return \Magento\Catalog\Model\ResourceModel\Category
      * @deprecated because resource models should be used directly
+     * phpcs:disable Generic.CodeAnalysis.UselessOverridingMethod
      */
     protected function _getResource()
     {
+        //phpcs:enable Generic.CodeAnalysis.UselessOverridingMethod
         return parent::_getResource();
     }
 
@@ -504,7 +508,7 @@ class Category extends \Magento\Catalog\Model\AbstractModel implements
      * Retrieve all customer attributes
      *
      * @param bool $noDesignAttributes
-     * @return array
+     * @return \Magento\Eav\Api\Data\AttributeInterface[]
      * @todo Use with Flat Resource
      * @SuppressWarnings(PHPMD.UnusedLocalVariable)
      */
@@ -756,7 +760,7 @@ class Category extends \Magento\Catalog\Model\AbstractModel implements
     /**
      * Retrieve design attributes array
      *
-     * @return array
+     * @return \Magento\Eav\Api\Data\AttributeInterface[]
      */
     public function getDesignAttributes()
     {

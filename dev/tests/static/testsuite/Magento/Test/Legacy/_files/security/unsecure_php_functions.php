@@ -52,12 +52,26 @@ return [
     'md5' => [
         'replacement' => '',
         'exclude' => [
-            ['type' => 'library', 'name' => 'magento/framework', 'path' => 'App/Utility/Files.php'],
+            [
+                'type' => 'library',
+                'name' => 'magento/framework',
+                'path' => 'App/Utility/Files.php'
+            ],
+            [
+                'type' => 'module',
+                'name' => 'Magento_Support',
+                'path' => 'Console/Command/AbstractBackupDumpCommand.php'
+            ],
             [
                 'type' => 'module',
                 'name' => 'Magento_Catalog',
                 'path' => 'view/adminhtml/templates/catalog/product/edit/serializer.phtml'
-            ]
+            ],
+            [
+                'type' => 'module',
+                'name' => 'Magento_Authorizenet',
+                'path' => 'Model/Directpost/Response.php',
+            ],
         ],
     ],
     'srand' => [
@@ -67,7 +81,47 @@ return [
     'mt_srand' => [
         'replacement' => '',
         'exclude' => [
-            ['type' => 'setup', 'path' => 'src/Magento/Setup/Fixtures/ConfigurableProductsFixture.php'],
+            [
+                'type' => 'setup',
+                'path' => 'src/Magento/Setup/Fixtures/ConfigurableProductsFixture.php'
+            ],
+            [
+                'type' => 'setup',
+                'path' => 'src/Magento/Setup/Fixtures/PriceProvider.php'
+            ],
+            [
+                'type' => 'setup',
+                'path' => 'src/Magento/Setup/Fixtures/SimpleProductsFixture.php'
+            ],
+        ]
+    ],
+    'mt_rand' => [
+        'replacement' => 'random_int',
+        'exclude' => [
+            [
+                'type' => 'setup',
+                'path' => 'src/Magento/Setup/Fixtures/ImagesGenerator/ImagesGenerator.php'
+            ],
+            [
+                'type' => 'setup',
+                'path' => 'src/Magento/Setup/Fixtures/BundleProductsFixture.php'
+            ],
+            [
+                'type' => 'setup',
+                'path' => 'src/Magento/Setup/Fixtures/ConfigurableProductsFixture.php'
+            ],
+            [
+                'type' => 'setup',
+                'path' => 'src/Magento/Setup/Fixtures/OrdersFixture.php'
+            ],
+            [
+                'type' => 'setup',
+                'path' => 'src/Magento/Setup/Fixtures/PriceProvider.php'
+            ],
+            [
+                'type' => 'setup',
+                'path' => 'src/Magento/Setup/Fixtures/SimpleProductsFixture.php'
+            ],
         ]
     ],
     'htmlspecialchars' => [

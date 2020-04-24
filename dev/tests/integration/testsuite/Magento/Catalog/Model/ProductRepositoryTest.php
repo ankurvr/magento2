@@ -9,12 +9,19 @@ namespace Magento\Catalog\Model;
 use Magento\Catalog\Api\ProductRepositoryInterface;
 use Magento\Catalog\Model\ResourceModel\Product as ProductResource;
 use Magento\TestFramework\Helper\Bootstrap;
+use Magento\Framework\Api\SearchCriteriaBuilder;
+use Magento\TestFramework\Bootstrap as TestBootstrap;
+use Magento\Framework\Acl\Builder;
+use Magento\Framework\Exception\LocalizedException;
+use Magento\TestFramework\Catalog\Model\ProductLayoutUpdateManager;
 
 /**
  * Provide tests for ProductRepository model.
  *
  * @magentoDbIsolation enabled
  * @magentoAppIsolation enabled
+ *
+ * @SuppressWarnings(PHPMD.CouplingBetweenObjects)
  */
 class ProductRepositoryTest extends \PHPUnit\Framework\TestCase
 {
@@ -31,21 +38,34 @@ class ProductRepositoryTest extends \PHPUnit\Framework\TestCase
     private $productResource;
 
     /**
-     * @var \Magento\Framework\Api\SearchCriteriaBuilder
+     * @var SearchCriteriaBuilder
      */
     private $searchCriteriaBuilder;
+
+    /**
+     * @var ProductLayoutUpdateManager
+     */
+    private $layoutManager;
 
     /**
      * @inheritdoc
      */
     protected function setUp()
     {
-        $this->productRepository = Bootstrap::getObjectManager()
-            ->get(ProductRepositoryInterface::class);
-        $this->productResource = Bootstrap::getObjectManager()
-            ->get(ProductResource::class);
-        $this->searchCriteriaBuilder = Bootstrap::getObjectManager()
-            ->create(\Magento\Framework\Api\SearchCriteriaBuilder::class);
+        $this->productRepository = Bootstrap::getObjectManager()->get(ProductRepositoryInterface::class);
+        $this->searchCriteriaBuilder = Bootstrap::getObjectManager()->get(SearchCriteriaBuilder::class);
+        $this->productResource = Bootstrap::getObjectManager()->get(ProductResource::class);
+        $this->layoutManager = Bootstrap::getObjectManager()->get(ProductLayoutUpdateManager::class);
+    }
+
+    /**
+     * Create new subject instance.
+     *
+     * @return ProductRepositoryInterface
+     */
+    private function createRepo(): ProductRepositoryInterface
+    {
+        return Bootstrap::getObjectManager()->create(ProductRepositoryInterface::class);
     }
 
     /**
@@ -245,5 +265,39 @@ class ProductRepositoryTest extends \PHPUnit\Framework\TestCase
         $this->assertEquals('image', $images[0]['media_type']);
         $this->assertStringStartsWith('/m/a/magento_image', $product->getData('image'));
         $this->assertStringStartsWith('/m/a/magento_image', $product->getData('small_image'));
+    }
+
+    /**
+     * Test that custom layout file attribute is saved.
+     *
+     * @return void
+     * @throws \Throwable
+     * @magentoDataFixture Magento/Catalog/_files/product_simple.php
+     * @magentoDbIsolation enabled
+     * @magentoAppIsolation enabled
+     */
+    public function testCustomLayout()
+    {
+        //New valid value
+        $repo = $this->createRepo();
+        $product = $repo->get('simple');
+        $newFile = 'test';
+        $this->layoutManager->setFakeFiles((int)$product->getId(), [$newFile]);
+        $product->setCustomAttribute('custom_layout_update_file', $newFile);
+        $repo->save($product);
+        $repo = $this->createRepo();
+        $product = $repo->get('simple');
+        $this->assertEquals($newFile, $product->getCustomAttribute('custom_layout_update_file')->getValue());
+
+        //Setting non-existent value
+        $newFile = 'does not exist';
+        $product->setCustomAttribute('custom_layout_update_file', $newFile);
+        $caughtException = false;
+        try {
+            $repo->save($product);
+        } catch (LocalizedException $exception) {
+            $caughtException = true;
+        }
+        $this->assertTrue($caughtException);
     }
 }
